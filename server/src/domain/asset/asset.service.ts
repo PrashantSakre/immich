@@ -395,7 +395,6 @@ export class AssetService {
     }
 
     const asset = await this.assetRepository.save({ id, ...rest });
-    await this.jobRepository.queue({ name: JobName.SEARCH_INDEX_ASSET, data: { ids: [id] } });
     return mapAsset(asset);
   }
 
@@ -420,7 +419,6 @@ export class AssetService {
       await this.assetRepository.updateAll([options.stackParentId], { stackParentId: null });
     }
 
-    await this.jobRepository.queue({ name: JobName.SEARCH_INDEX_ASSET, data: { ids } });
     await this.assetRepository.updateAll(ids, options);
     this.communicationRepository.send(CommunicationEvent.ASSET_UPDATE, authUser.id, ids);
   }
@@ -457,16 +455,6 @@ export class AssetService {
       return false;
     }
 
-    if (asset.faces) {
-      await Promise.all(
-        asset.faces.map(
-          ({ assetId, personId }) =>
-            personId != null &&
-            this.jobRepository.queue({ name: JobName.SEARCH_REMOVE_FACE, data: { assetId, personId } }),
-        ),
-      );
-    }
-
     // Replace the parent of the stack children with a new asset
     if (asset.stack && asset.stack.length != 0) {
       const stackIds = asset.stack.map((a) => a.id);
@@ -476,7 +464,6 @@ export class AssetService {
     }
 
     await this.assetRepository.remove(asset);
-    await this.jobRepository.queue({ name: JobName.SEARCH_REMOVE_ASSET, data: { ids: [asset.id] } });
     this.communicationRepository.send(CommunicationEvent.ASSET_DELETE, asset.ownerId, id);
 
     // TODO refactor this to use cascades
@@ -507,7 +494,6 @@ export class AssetService {
       }
     } else {
       await this.assetRepository.softDeleteAll(ids);
-      await this.jobRepository.queue({ name: JobName.SEARCH_REMOVE_ASSET, data: { ids } });
       this.communicationRepository.send(CommunicationEvent.ASSET_TRASH, authUser.id, ids);
     }
   }
@@ -521,7 +507,6 @@ export class AssetService {
       for await (const assets of assetPagination) {
         const ids = assets.map((a) => a.id);
         await this.assetRepository.restoreAll(ids);
-        await this.jobRepository.queue({ name: JobName.SEARCH_INDEX_ASSET, data: { ids } });
         this.communicationRepository.send(CommunicationEvent.ASSET_RESTORE, authUser.id, ids);
       }
       return;
@@ -541,7 +526,6 @@ export class AssetService {
     const { ids } = dto;
     await this.access.requirePermission(authUser, Permission.ASSET_RESTORE, ids);
     await this.assetRepository.restoreAll(ids);
-    await this.jobRepository.queue({ name: JobName.SEARCH_INDEX_ASSET, data: { ids } });
     this.communicationRepository.send(CommunicationEvent.ASSET_RESTORE, authUser.id, ids);
   }
 
