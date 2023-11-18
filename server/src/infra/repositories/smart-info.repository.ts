@@ -61,6 +61,8 @@ export class SmartInfoRepository implements ISmartInfoRepository {
 
       this.logger.log(`Updating CLIP dimension size to ${dimSize}`);
 
+      // use dot product here since CLIP embeddings are now normalized
+      // and we know there are no non-normalized embeddings after this
       await this.smartSearchRepository.manager.query(`
         BEGIN;
 
@@ -70,7 +72,6 @@ export class SmartInfoRepository implements ISmartInfoRepository {
 
         CREATE INDEX clip_index ON smart_search
         USING vectors (embedding dot_ops) WITH (options = $$
-        capacity = 2097152
         [indexing.hnsw]
         m = 16
         ef_construction = 300
